@@ -5,7 +5,7 @@ import SwiftyTeeth
 
 @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
 public extension SwiftyTeeth {
-    func statePublisher() -> AnyPublisher<BluetoothState, Never> {
+    func state() -> AnyPublisher<BluetoothState, Never> {
         let publisher = CurrentValueSubject<BluetoothState, Never>(self.state)
         self.stateChangedHandler = { (state) in
             publisher.send(state)
@@ -26,7 +26,7 @@ public extension SwiftyTeeth {
             }).eraseToAnyPublisher()
     }
     
-    func scan(for timeout: TimeInterval = 10) -> AnyPublisher<[Device], Never> {
+    func scan(for timeout: TimeInterval) -> AnyPublisher<[Device], Never> {
         return Future { (promise) in
             self.scan(for: timeout) { (devices) in
                 promise(.success(devices))
