@@ -12,9 +12,9 @@ import SwiftUI
 
 final class PeripheralViewModel: ObservableObject {
     let peripheral: Device
-    let serviceUuid = UUID(uuidString: "00726f62-6f74-7061-6a61-6d61732e6361")
-    let txUuid = UUID(uuidString: "01726f62-6f74-7061-6a61-6d61732e6361")
-    let rxUuid = UUID(uuidString: "02726f62-6f74-7061-6a61-6d61732e6361")
+    let serviceUuid = UUID(uuidString: "00726f62-6f74-7061-6a61-6d61732e6361")!
+    let txUuid = UUID(uuidString: "01726f62-6f74-7061-6a61-6d61732e6361")!
+    let rxUuid = UUID(uuidString: "02726f62-6f74-7061-6a61-6d61732e6361")!
 
     @Published var logMessage = ""
     
@@ -35,8 +35,8 @@ final class PeripheralViewModel: ObservableObject {
     func connect() {
         connectCancellable = peripheral.connect()
             .removeDuplicates()
-            .filter { $0 == true }
-            .flatMap { (isConnected) -> AnyPublisher<[CBService], Never> in
+            .filter { $0 == .connected }
+            .flatMap { (isConnected) -> AnyPublisher<[Service], Never> in
                 self.log("App: Device is connected? \(isConnected)")
                 self.log("App: Starting service discovery...")
                 return self.peripheral.discoverServices()
@@ -49,10 +49,12 @@ final class PeripheralViewModel: ObservableObject {
                 return self.peripheral.discoverCharacteristics(for: service)
             }
             .flatMap { (discoveredCharacteristic) in
-                return discoveredCharacteristic.characteristics.publisher
+                return discoveredCharacteristic.characteristics.map { (characteristic) -> (Service, Characteristic) in
+                    return (discoveredCharacteristic.service, characteristic)
+                }.publisher
             }
-            .sink { [weak self] (characteristic) in
-                self?.log("App: Discovered characteristic: \(characteristic .uuid.uuidString) in \(String(describing: characteristic.service.uuid.uuidString))")
+            .sink { [weak self] (value) in
+                self?.log("App: Discovered characteristic: \(value.1.uuid.uuidString) in \(value.0.uuid.uuidString)")
             }
     }
     
@@ -62,14 +64,14 @@ final class PeripheralViewModel: ObservableObject {
     }
     
     func subscribe() {
-        peripheral.subscribe(to: rxUuid!.uuidString, in: serviceUuid!.uuidString)
+        peripheral.subscribe(to: rxUuid, in: serviceUuid)
             .sink { [weak self] (value) in
                 self?.log("Subscribed value: \([UInt8](value))")
             }.store(in: &cancellables)
     }
     
     func read() {
-        peripheral.read(from: rxUuid!.uuidString, in: serviceUuid!.uuidString)
+        peripheral.read(from: rxUuid, in: serviceUuid)
             .sink { [weak self] (value) in
                 self?.log("Read value: \([UInt8](value))")
             }.store(in: &cancellables)
@@ -77,7 +79,7 @@ final class PeripheralViewModel: ObservableObject {
     
     func write() {
         let command = Data([0x01])
-        peripheral.write(data: command, to: txUuid!.uuidString, in: serviceUuid!.uuidString)
+        peripheral.write(data: command, to: txUuid, in: serviceUuid)
             .sink { [weak self] (value) in
                 self?.log("Write with response successful? \(value)")
             }.store(in: &cancellables)
