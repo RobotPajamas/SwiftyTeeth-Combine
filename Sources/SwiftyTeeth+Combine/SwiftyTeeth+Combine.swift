@@ -1,5 +1,4 @@
 import Combine
-import CoreBluetooth
 import Foundation
 import SwiftyTeeth
 
@@ -37,15 +36,23 @@ public extension SwiftyTeeth {
 
 @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
 public extension Device {
-    func connect() -> AnyPublisher<Bool, Never> {
-        let subject = CurrentValueSubject<Bool, Never>(self.isConnected)
-        self.connect { (isConnected) in
-            subject.send(isConnected)
+    func state() -> AnyPublisher<ConnectionState, Never> {
+        let publisher = CurrentValueSubject<ConnectionState, Never>(self.connectionState)
+        self.connectionStateChangedHandler = { (state) in
+            publisher.send(state)
+        }
+        return publisher.eraseToAnyPublisher()
+    }
+
+    func connect() -> AnyPublisher<ConnectionState, Never> {
+        let subject = CurrentValueSubject<ConnectionState, Never>(self.connectionState)
+        self.connect { (state) in
+            subject.send(state)
         }
         return subject.eraseToAnyPublisher()
     }
     
-    func discoverServices(with uuids: [CBUUID]? = nil) -> AnyPublisher<[CBService], Never> {
+    func discoverServices(with uuids: [UUID]? = nil) -> AnyPublisher<[Service], Never> {
         return Future { (promise) in
             self.discoverServices(with: uuids) { (result) in
                 switch result {
@@ -59,7 +66,7 @@ public extension Device {
         }.eraseToAnyPublisher()
     }
 
-    func discoverCharacteristics(with uuids: [CBUUID]? = nil, for service: CBService) -> AnyPublisher<DiscoveredCharacteristic, Never> {
+    func discoverCharacteristics(with uuids: [UUID]? = nil, for service: Service) -> AnyPublisher<DiscoveredCharacteristic, Never> {
         return Deferred {
             return Future { (promise) in
                 self.discoverCharacteristics(with: uuids, for: service) { (result) in
@@ -75,7 +82,7 @@ public extension Device {
         }.eraseToAnyPublisher()
     }
     
-    func read(from characteristic: String, in service: String) -> AnyPublisher<Data, Never> {
+    func read(from characteristic: UUID, in service: UUID) -> AnyPublisher<Data, Never> {
         return Deferred {
             return Future { (promise) in
                 self.read(from: characteristic, in: service) { (result) in
@@ -93,7 +100,7 @@ public extension Device {
     
     // TODO: Handle write-no-response
     // Should be Single<>?
-    func write(data: Data, to characteristic: String, in service: String) -> AnyPublisher<Void, Never> {
+    func write(data: Data, to characteristic: UUID, in service: UUID) -> AnyPublisher<Void, Never> {
         return Deferred {
             return Future { (promise) in
                 self.write(data: data, to: characteristic, in: service) { (result) in
@@ -109,7 +116,7 @@ public extension Device {
         }.eraseToAnyPublisher()
     }
     
-    func subscribe(to characteristic: String, in service: String) -> AnyPublisher<Data, Never> {
+    func subscribe(to characteristic: UUID, in service: UUID) -> AnyPublisher<Data, Never> {
         let subject = PassthroughSubject<Data, Never>()
         self.subscribe(to: characteristic, in: service) { (result) in
             switch result {
